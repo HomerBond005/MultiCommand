@@ -1,0 +1,8 @@
+name: MultiCommand
+main: com.bukkit.HomerBond005.MultiCommand.MultiCommand
+author: HomerBond005
+version: 1.0
+commands:
+    muco:
+        description: Main Command.
+        usage: Type /<command> help for help.
