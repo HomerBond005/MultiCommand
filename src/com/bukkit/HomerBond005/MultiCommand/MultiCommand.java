@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -12,9 +13,11 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.config.Configuration;
-import org.yaml.snakeyaml.*;
+import org.yaml.snakeyaml.Yaml;
 
 @SuppressWarnings("deprecation")
 public class MultiCommand extends JavaPlugin{
@@ -23,6 +26,8 @@ public class MultiCommand extends JavaPlugin{
 	File configfile = new File (mainDir + File.separator + "config.yml");
 	Configuration bukkitconfig = new Configuration(configfile);
 	InputStream is = null;
+	PluginManager pm;
+	private CommandPre playerlistener = new CommandPre(this);
 	//Permission System
 	Boolean PermissionsPlugin = false;
 	/*private void setupPermissions() {
@@ -38,6 +43,7 @@ public class MultiCommand extends JavaPlugin{
       }*/
 	//End of Permission-System
 	public void onEnable(){
+		pm = getServer().getPluginManager();
 		if(!new File(mainDir).exists()){
 			new File(mainDir).mkdir();
 			System.out.println("[MultiCommand]: /plugins/MultiCommand created.");
@@ -46,12 +52,14 @@ public class MultiCommand extends JavaPlugin{
 			try{
 				configfile.createNewFile();
 				bukkitconfig.setProperty("Permissions", true);
+				bukkitconfig.setProperty("Shortcuts.TheCommandYouExecute", "TheCommandThatShouldBeExecuted");
 				bukkitconfig.save();
 				System.out.println("[MultiCommand]: config.yml created.");
 			}catch(IOException e){
 				e.printStackTrace();
 			}
 		}
+		pm.registerEvent(Event.Type.PLAYER_COMMAND_PREPROCESS, playerlistener, Event.Priority.Lowest, this);
 		PermissionsPlugin = bukkitconfig.getBoolean("Permissions", false);
 		System.out.println("[MultiCommand]: Using Permissions: " + PermissionsPlugin);
 		if(!commandsdir.exists()){
@@ -59,7 +67,6 @@ public class MultiCommand extends JavaPlugin{
 			System.out.println("[MultiCommand]: /plugins/MultiCommand/Commands created.");
 		}
 		System.out.println("[MultiCommand] is enabled!");
-		System.out.println();
 		commands();
 	}
 	public void onDisable(){
@@ -94,6 +101,14 @@ public class MultiCommand extends JavaPlugin{
 		player.sendMessage(ChatColor.RED + "/muco add <name> <command>    " + ChatColor.YELLOW + "Adds a command to a list.");
 		//player.sendMessage(ChatColor.RED + "/muco remove <name> <command>    " + ChatColor.YELLOW + "Removes a command from a list.");
 		player.sendMessage(ChatColor.RED + "/muco delete <name>    " + ChatColor.YELLOW + "Deletes a list of commands.");
+	}
+	public List<String> getShortcuts(){
+		bukkitconfig.load();
+		return bukkitconfig.getKeys("Shortcuts");
+	}
+	public String getShortcutExe(String shortcut){
+		bukkitconfig.load();
+		return bukkitconfig.getString("Shortcuts." + shortcut);
 	}
 	@SuppressWarnings("unused")
 	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args){
