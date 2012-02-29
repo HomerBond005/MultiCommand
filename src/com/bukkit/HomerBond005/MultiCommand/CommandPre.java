@@ -1,14 +1,17 @@
 package com.bukkit.HomerBond005.MultiCommand;
 
 import org.bukkit.ChatColor;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.player.PlayerListener;
 
-public class CommandPre extends PlayerListener{
+public class CommandPre implements Listener{
 	MultiCommand plugin;
 	public CommandPre(MultiCommand got){
 		plugin = got;
 	}
+	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event){
 		if(event.isCancelled()){
 			return;
