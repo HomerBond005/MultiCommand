@@ -1,10 +1,13 @@
-package com.bukkit.HomerBond005.MultiCommand;
+/*
+ * Copyright HomerBond005
+ * 
+ *  Published under CC BY-NC-ND 3.0
+ *  http://creativecommons.org/licenses/by-nc-nd/3.0/
+ */
+package de.HomerBond005.MultiCommand;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.bukkit.ChatColor;
@@ -13,43 +16,19 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import ru.tehkode.permissions.PermissionManager;
-import ru.tehkode.permissions.bukkit.PermissionsEx;
+import de.HomerBond005.Permissions.PermissionsChecker;
 
 public class MultiCommand extends JavaPlugin{
-	String mainDir = "plugins/MultiCommand";
-	File commandsdir = new File("plugins/MultiCommand/Commands");
-	File configfile = new File (mainDir + File.separator + "config.yml");
-	FileConfiguration bukkitconfig = YamlConfiguration.loadConfiguration(configfile);
-	InputStream is = null;
-	PluginManager pm;
+	private String mainDir = "plugins/MultiCommand";
+	private File commandsdir = new File("plugins/MultiCommand/Commands");
+	private File configfile = new File (mainDir + File.separator + "config.yml");
+	private FileConfiguration bukkitconfig = YamlConfiguration.loadConfiguration(configfile);
+	private boolean verbooseMode = false;
+	private PluginManager pm;
 	private CommandPre playerlistener = new CommandPre(this);
-	//Permission System
-	Boolean permissions = false;
-	Boolean pex = false;
-	PermissionManager pexmanager;
-	private void setupPermissions() {
-		permissions = bukkitconfig.getBoolean("Permissions", false);
-		if(permissions){
-			permissions = true;
-			Plugin permissionsPlugin = this.getServer().getPluginManager().getPlugin("PermissionsEx");
-			if(permissionsPlugin != null) {
-	            System.out.println("[MultiCommand]: PermissionsEx detected. Using PermissionEx.");
-	            pexmanager = PermissionsEx.getPermissionManager();
-	            pex = true;
-	            
-	        } else {
-	        	System.out.println("[MultiCommand]: PermissionsEx not detected. Defaulting to BukkitPerms.");
-	        	pex = false;
-	        }
-		}else{
-			System.out.println("[MultiCommand]: Using OP-only.");
-		}
-    }
-	//End of Permission-System
+	private PermissionsChecker pc;
 	public void onEnable(){
 		pm = getServer().getPluginManager();
 		if(!new File(mainDir).exists()){
@@ -61,6 +40,7 @@ public class MultiCommand extends JavaPlugin{
 				configfile.createNewFile();
 				bukkitconfig.set("Permissions", true);
 				bukkitconfig.set("Shortcuts.TheCommandYouExecute", "TheCommandThatShouldBeExecuted");
+				bukkitconfig.set("verbooseMode", false);
 				bukkitconfig.save(configfile);
 				System.out.println("[MultiCommand]: config.yml created.");
 			}catch(IOException e){
@@ -68,8 +48,15 @@ public class MultiCommand extends JavaPlugin{
 			}
 		}
 		pm.registerEvents(playerlistener, this);
-		setupPermissions();
-		System.out.println("[MultiCommand]: Using Permissions: " + permissions);
+		pc = new PermissionsChecker(this, bukkitconfig.getBoolean("Permissions", false));
+		if(!bukkitconfig.contains("verbooseMode")){
+			bukkitconfig.set("verbooseMode", false);
+			try{
+				bukkitconfig.save(configfile);
+			}catch(IOException e){}
+			System.out.println("[MultiCommand]: Created verbooseMode in config.yml.");
+		}
+		verbooseMode = bukkitconfig.getBoolean("verbooseMode", false);
 		if(!commandsdir.exists()){
 			commandsdir.mkdir();
 			System.out.println("[MultiCommand]: /plugins/MultiCommand/Commands created.");
@@ -90,7 +77,7 @@ public class MultiCommand extends JavaPlugin{
 		return CommandNames;
 	}
 	private void help(Player player){
-		if(!hasPermission(player, "MultiCommand.help")){
+		if(!pc.has(player, "MultiCommand.help")){
 			sendNoPermMsg(player);
 			return;
 		}
@@ -130,7 +117,7 @@ public class MultiCommand extends JavaPlugin{
 			if(args[0].equalsIgnoreCase("help")){
 				help(player);
 			}else if(args[0].equalsIgnoreCase("list")){
-				if(!hasPermission(player, "MultiCommand.list")&&!hasPermission(player, "MultiCommand.all")){
+				if(!pc.has(player, "MultiCommand.list")&&!pc.has(player, "MultiCommand.all")){
 					sendNoPermMsg(player);
 					return true;
 				}
@@ -156,7 +143,7 @@ public class MultiCommand extends JavaPlugin{
 					player.sendMessage(ChatColor.RED + "Usage: /muco delete <name>");
 					return true;
 				}
-				if(!hasPermission(player, "MultiCommand.delete." + args[1])&&!hasPermission(player, "MultiCommand.delete.all")&&!hasPermission(player, "MultiCommand.all")){
+				if(!pc.has(player, "MultiCommand.delete." + args[1])&&!pc.has(player, "MultiCommand.delete.all")&&!pc.has(player, "MultiCommand.all")){
 					sendNoPermMsg(player);
 					return true;
 				}
@@ -177,7 +164,7 @@ public class MultiCommand extends JavaPlugin{
 					return true;
 				}
 			}else if(args[0].equalsIgnoreCase("create")){
-				if(!hasPermission(player, "MultiCommand.create." + args[1])&&!hasPermission(player, "MultiCommand.create.all")&&!hasPermission(player, "MultiCommand.all")){
+				if(!pc.has(player, "MultiCommand.create." + args[1])&&!pc.has(player, "MultiCommand.create.all")&&!pc.has(player, "MultiCommand.all")){
 					sendNoPermMsg(player);
 					return true;
 				}
@@ -209,17 +196,12 @@ public class MultiCommand extends JavaPlugin{
 					player.sendMessage(ChatColor.RED + "Usage: /muco add <name> <command>");
 					return true;
 				}
-				if(!hasPermission(player, "MultiCommand.add." + args[1])&&!hasPermission(player, "MultiCommand.add.all")&&!hasPermission(player, "MultiCommand.all")){
+				if(!pc.has(player, "MultiCommand.add." + args[1])&&!pc.has(player, "MultiCommand.add.all")&&!pc.has(player, "MultiCommand.all")){
 					sendNoPermMsg(player);
 					return true;
 				}
 				File f = new File(commandsdir + File.separator + args[1] + ".yml");
 				if(f.exists()){
-					try {
-						is = new FileInputStream(f);
-					} catch (FileNotFoundException e) {
-						e.printStackTrace();
-					}
 					String adding = "";
 					for(int i = 2; i < args.length; i++){
 						adding += args[i] + " ";
@@ -236,66 +218,108 @@ public class MultiCommand extends JavaPlugin{
 					player.sendMessage(ChatColor.RED + "List " + args[1] + " doesn't exist.");
 					return true;
 				}
-			}
-			for(int i = 0; i < commands().length; i++){
-				if(args[0].equalsIgnoreCase(commands()[i])){
-					if(!hasPermission(player, "MultiCommand.use." + args[0])&&!hasPermission(player, "MultiCommand.use.all")&&!hasPermission(player, "MultiCommand.all")){
-						sendNoPermMsg(player);
-						return true;
+			}else if(args[0].equalsIgnoreCase("add")){
+				try{
+					String test = args[1];
+					String test2 = args[2];
+				}catch(ArrayIndexOutOfBoundsException e){
+					player.sendMessage(ChatColor.RED + "Usage: /muco add <name> <command>");
+					return true;
+				}
+				if(!pc.has(player, "MultiCommand.add." + args[1])&&!pc.has(player, "MultiCommand.add.all")&&!pc.has(player, "MultiCommand.all")){
+					sendNoPermMsg(player);
+					return true;
+				}
+				File f = new File(commandsdir + File.separator + args[1] + ".yml");
+				if(f.exists()){
+					String adding = "";
+					for(int i = 2; i < args.length; i++){
+						adding += args[i] + " ";
 					}
-					FileConfiguration conf = YamlConfiguration.loadConfiguration(new File(commandsdir + File.separator + args[0] + ".yml"));
-					Set<String> CommandsYML = conf.getKeys(false);
-					for(int w = 0; w < CommandsYML.size(); w++){
-						player.sendMessage(ChatColor.DARK_RED + CommandsYML.toArray()[w].toString());
-						String newchatmsg = CommandsYML.toArray()[w].toString();
-						Boolean jump = false;
-						if((Pattern.compile("\\$1")).matcher(newchatmsg).find()){
-							try{
-								newchatmsg = newchatmsg.replaceAll("\\$1", args[1]);
-							}catch(ArrayIndexOutOfBoundsException e){
-								player.sendMessage(ChatColor.RED + "The command above requires at least one argument!");
-								player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1>");
-								jump = true;
-							}
+					FileConfiguration config = YamlConfiguration.loadConfiguration(f);
+					try {
+						config.set(adding, "");
+						config.save(f);
+					} catch (Exception e){
+					}
+					player.sendMessage(ChatColor.GREEN + "Successfully added " + ChatColor.GOLD + adding + ChatColor.GREEN + " to " + ChatColor.GOLD + args[1] + ChatColor.GREEN + ".");
+					return true;
+				}else{
+					player.sendMessage(ChatColor.RED + "List " + args[1] + " doesn't exist.");
+					return true;
+				}
+			}else{
+				for(int i = 0; i < commands().length; i++){
+					if(args[0].equalsIgnoreCase(commands()[i])){
+						if(!pc.has(player, "MultiCommand.use." + args[0])&&!pc.has(player, "MultiCommand.use.all")&&!pc.has(player, "MultiCommand.all")){
+							sendNoPermMsg(player);
+							return true;
 						}
-						if((Pattern.compile("\\$2")).matcher(newchatmsg).find()&&!jump){
-							try{
-								newchatmsg = newchatmsg.replaceAll("\\$2", args[2]);
-							}catch(ArrayIndexOutOfBoundsException e){
-								player.sendMessage(ChatColor.RED + "The command above requires at least two arguments!");
-								player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2>");
-								jump = true;
+						FileConfiguration conf = YamlConfiguration.loadConfiguration(new File(commandsdir + File.separator + args[0] + ".yml"));
+						Set<String> CommandsYML = conf.getKeys(false);
+						for(int w = 0; w < CommandsYML.size(); w++){
+							if(verbooseMode){
+								player.sendMessage(ChatColor.DARK_RED + CommandsYML.toArray()[w].toString());
 							}
-						}
-						if((Pattern.compile("\\$3")).matcher(newchatmsg).find()&&!jump){
-							try{
-								newchatmsg = newchatmsg.replaceAll("\\$3", args[3]);
-							}catch(ArrayIndexOutOfBoundsException e){
-								player.sendMessage(ChatColor.RED + "The command above requires at least three arguments!");
-								player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3>");
-								jump = true;
+							String newchatmsg = CommandsYML.toArray()[w].toString();
+							Boolean jump = false;
+							for(int t = 1; t < 6; t++){
+								if((Pattern.compile("\\[\\$" + t + "\\]")).matcher(newchatmsg).find()){
+									try{
+										newchatmsg = newchatmsg.replaceAll("\\[\\$" + t + "\\]", args[t]);
+									}catch(ArrayIndexOutOfBoundsException e){
+										newchatmsg = newchatmsg.replaceAll("\\[\\$" + t + "\\]", "");
+									}
+								}
 							}
-						}
-						if((Pattern.compile("\\$4")).matcher(newchatmsg).find()&&!jump){
-							try{
-								newchatmsg = newchatmsg.replaceAll("\\$4", args[4]);
-							}catch(ArrayIndexOutOfBoundsException e){
-								player.sendMessage(ChatColor.RED + "The command above requires at least four arguments!");
-								player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3> <arg4>");
-								jump = true;
+							if((Pattern.compile("\\$1")).matcher(newchatmsg).find()){
+								try{
+									newchatmsg = newchatmsg.replaceAll("\\$1", args[1]);
+								}catch(ArrayIndexOutOfBoundsException e){
+									player.sendMessage(ChatColor.RED + "The command above requires at least one argument!");
+									player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1>");
+									jump = true;
+								}
 							}
-						}
-						if((Pattern.compile("\\$5")).matcher(newchatmsg).find()&&!jump){
-							try{
-								newchatmsg = newchatmsg.replaceAll("\\$5", args[5]);
-							}catch(ArrayIndexOutOfBoundsException e){
-								player.sendMessage(ChatColor.RED + "The command above requires at least three arguments!");
-								player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3> <arg4> <arg5>");
-								jump = true;
+							if((Pattern.compile("\\$2")).matcher(newchatmsg).find()&&!jump){
+								try{
+									newchatmsg = newchatmsg.replaceAll("\\$2", args[2]);
+								}catch(ArrayIndexOutOfBoundsException e){
+									player.sendMessage(ChatColor.RED + "The command above requires at least two arguments!");
+									player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2>");
+									jump = true;
+								}
 							}
-						}
-						if(jump == false){
-							player.chat(newchatmsg);
+							if((Pattern.compile("\\$3")).matcher(newchatmsg).find()&&!jump){
+								try{
+									newchatmsg = newchatmsg.replaceAll("\\$3", args[3]);
+								}catch(ArrayIndexOutOfBoundsException e){
+									player.sendMessage(ChatColor.RED + "The command above requires at least three arguments!");
+									player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3>");
+									jump = true;
+								}
+							}
+							if((Pattern.compile("\\$4")).matcher(newchatmsg).find()&&!jump){
+								try{
+									newchatmsg = newchatmsg.replaceAll("\\$4", args[4]);
+								}catch(ArrayIndexOutOfBoundsException e){
+									player.sendMessage(ChatColor.RED + "The command above requires at least four arguments!");
+									player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3> <arg4>");
+									jump = true;
+								}
+							}
+							if((Pattern.compile("\\$5")).matcher(newchatmsg).find()&&!jump){
+								try{
+									newchatmsg = newchatmsg.replaceAll("\\$5", args[5]);
+								}catch(ArrayIndexOutOfBoundsException e){
+									player.sendMessage(ChatColor.RED + "The command above requires at least three arguments!");
+									player.sendMessage(ChatColor.RED + "Usage: /muco " + args[0] + " <arg1> <arg2> <arg3> <arg4> <arg5>");
+									jump = true;
+								}
+							}
+							if(jump == false){
+								player.chat(newchatmsg);
+							}
 						}
 					}
 				}
@@ -303,19 +327,8 @@ public class MultiCommand extends JavaPlugin{
 		}
 		return true;
 	}
-	private boolean hasPermission(Player player, String permission){
-		if(permissions){
-			if(pex){
-				return pexmanager.has(player, permission);
-			}else{
-				return player.hasPermission(permission);
-			}
-		}else{
-			return player.isOp();
-		}
-	}
 	private void sendNoPermMsg(Player player){
-		if(permissions)
+		if(bukkitconfig.getBoolean("Permissions"))
 			player.sendMessage(ChatColor.RED + "You don't have the permission to use this!");
 		else
 			player.sendMessage(ChatColor.RED + "You aren't an OP!");

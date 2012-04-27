@@ -1,4 +1,10 @@
-package com.bukkit.HomerBond005.MultiCommand;
+/*
+ * Copyright HomerBond005
+ * 
+ *  Published under CC BY-NC-ND 3.0
+ *  http://creativecommons.org/licenses/by-nc-nd/3.0/
+ */
+package de.HomerBond005.MultiCommand;
 
 import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
