@@ -8,6 +8,8 @@ package de.HomerBond005.MultiCommand;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.bukkit.ChatColor;
@@ -22,7 +24,6 @@ import de.HomerBond005.Permissions.PermissionsChecker;
 
 public class MultiCommand extends JavaPlugin{
 	private String mainDir = "plugins/MultiCommand";
-	private File commandsdir = new File("plugins/MultiCommand/Commands");
 	private File configfile = new File (mainDir + File.separator + "config.yml");
 	private FileConfiguration bukkitconfig = YamlConfiguration.loadConfiguration(configfile);
 	private boolean verbooseMode = false;
@@ -57,24 +58,17 @@ public class MultiCommand extends JavaPlugin{
 			System.out.println("[MultiCommand]: Created verbooseMode in config.yml.");
 		}
 		verbooseMode = bukkitconfig.getBoolean("verbooseMode", false);
-		if(!commandsdir.exists()){
-			commandsdir.mkdir();
-			System.out.println("[MultiCommand]: /plugins/MultiCommand/Commands created.");
+		if(new File("plugins/MultiCommand/Commands").exists()){
+			upgrade();
+			System.out.println("[MultiCommand]: Filesystem upgraded!");
 		}
 		System.out.println("[MultiCommand] is enabled!");
-		commands();
 	}
 	public void onDisable(){
 		System.out.println("[MultiCommand] is disabled!");
 	}
 	private String[] commands(){
-		File[] files = commandsdir.listFiles();
-		String[] CommandNames = new String[files.length];
-		for(int i = 0; i < files.length; i++){
-			int yml = files[i].getName().length() - 4;
-			CommandNames[i] = files[i].getName().substring(0, yml);
-		}
-		return CommandNames;
+		return bukkitconfig.getConfigurationSection("Commands").getKeys(false).toArray(new String[0]);
 	}
 	private void help(Player player){
 		if(!pc.has(player, "MultiCommand.help")){
@@ -104,13 +98,10 @@ public class MultiCommand extends JavaPlugin{
 		}
 		return bukkitconfig.getString("Shortcuts." + shortcut);
 	}
-	@SuppressWarnings("unused")
 	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args){
 		Player player = (Player) sender;
 		if(command.getName().equalsIgnoreCase("muco")){
-			try{
-				String test = args[0];
-			}catch(ArrayIndexOutOfBoundsException e){
+			if(args.length == 0){
 				help(player);
 				return true;
 			}
@@ -137,9 +128,7 @@ public class MultiCommand extends JavaPlugin{
 				}
 				return true;
 			}else if(args[0].equalsIgnoreCase("delete")){
-				try{
-					String test = args[1];
-				}catch(ArrayIndexOutOfBoundsException e){
+				if(args.length == 1){
 					player.sendMessage(ChatColor.RED + "Usage: /muco delete <name>");
 					return true;
 				}
@@ -147,20 +136,17 @@ public class MultiCommand extends JavaPlugin{
 					sendNoPermMsg(player);
 					return true;
 				}
-				File f = new File(commandsdir + File.separator + args[1] + ".yml");
-				if(f.exists()){
-					if(f.delete() == false){
-						f.delete();
-						if(f.exists()){
-							player.sendMessage(ChatColor.RED + "ERROR WHILE DELETING FILE!");
-							player.sendMessage(ChatColor.RED + "Please delete /plugins/MultiCommand/"+ args[1] + ".yml manually.");
-							return true;
-						}
+				if(bukkitconfig.isSet("Commands." +  args[1])){
+					bukkitconfig.set("Commands." + args[1], null);
+					try{
+						bukkitconfig.save(configfile);
+					}catch(IOException e){
+						player.sendMessage(ChatColor.RED + "Error while deleting " + ChatColor.GOLD + args[1] + ChatColor.RED + "!");
 					}
 					player.sendMessage(ChatColor.GREEN + "Successfully deleted " + ChatColor.GOLD + args[1] + ChatColor.GREEN + ".");
 					return true;
 				}else{
-					player.sendMessage(ChatColor.RED + "List " + args[1] + " not set.");
+					player.sendMessage(ChatColor.RED + "List " + ChatColor.GOLD + args[1] + ChatColor.RED + " doesn't exists.");
 					return true;
 				}
 			}else if(args[0].equalsIgnoreCase("create")){
@@ -168,31 +154,26 @@ public class MultiCommand extends JavaPlugin{
 					sendNoPermMsg(player);
 					return true;
 				}
-				try{
-					String test = args[1];
-				}catch(ArrayIndexOutOfBoundsException e){
+				if(args.length == 1){
 					player.sendMessage(ChatColor.RED + "Usage: /muco create <name>");
 					return true;
 				}
-				File f = new File(commandsdir + File.separator + args[1] + ".yml");
-				if(f.exists()){
+				if(bukkitconfig.isSet("Commands." + args[1])){
 					player.sendMessage(ChatColor.RED + args[1] + " already exists.");
 					return true;
 				}else{
+					bukkitconfig.set("Commands." + args[1], new LinkedList<String>());
 					try {
-						f.createNewFile();
+						bukkitconfig.save(configfile);
 					} catch (IOException e) {
-						player.sendMessage(ChatColor.RED + "Failed on creating new file!");
+						player.sendMessage(ChatColor.RED + "Failed on creating a new list!");
 						e.printStackTrace();
 					}
-					player.sendMessage(ChatColor.GREEN + "List " + args[1] + " successfully created.");
+					player.sendMessage(ChatColor.GREEN + "List " + ChatColor.GOLD + args[1] + ChatColor.GREEN + " successfully created.");
 					return true;
 				}
 			}else if(args[0].equalsIgnoreCase("add")){
-				try{
-					String test = args[1];
-					String test2 = args[2];
-				}catch(ArrayIndexOutOfBoundsException e){
+				if(args.length < 3){
 					player.sendMessage(ChatColor.RED + "Usage: /muco add <name> <command>");
 					return true;
 				}
@@ -200,52 +181,23 @@ public class MultiCommand extends JavaPlugin{
 					sendNoPermMsg(player);
 					return true;
 				}
-				File f = new File(commandsdir + File.separator + args[1] + ".yml");
-				if(f.exists()){
+				if(bukkitconfig.isSet("Commands." + args[1])){
 					String adding = "";
 					for(int i = 2; i < args.length; i++){
 						adding += args[i] + " ";
 					}
-					FileConfiguration config = YamlConfiguration.loadConfiguration(f);
+					adding = adding.trim();
 					try {
-						config.set(adding, "");
-						config.save(f);
+						List<String> newList = bukkitconfig.getStringList("Commands." + args[1]);
+						newList.add(adding);
+						bukkitconfig.set("Commands." + args[1], newList);
+						bukkitconfig.save(configfile);
 					} catch (Exception e){
 					}
 					player.sendMessage(ChatColor.GREEN + "Successfully added " + ChatColor.GOLD + adding + ChatColor.GREEN + " to " + ChatColor.GOLD + args[1] + ChatColor.GREEN + ".");
 					return true;
 				}else{
-					player.sendMessage(ChatColor.RED + "List " + args[1] + " doesn't exist.");
-					return true;
-				}
-			}else if(args[0].equalsIgnoreCase("add")){
-				try{
-					String test = args[1];
-					String test2 = args[2];
-				}catch(ArrayIndexOutOfBoundsException e){
-					player.sendMessage(ChatColor.RED + "Usage: /muco add <name> <command>");
-					return true;
-				}
-				if(!pc.has(player, "MultiCommand.add." + args[1])&&!pc.has(player, "MultiCommand.add.all")&&!pc.has(player, "MultiCommand.all")){
-					sendNoPermMsg(player);
-					return true;
-				}
-				File f = new File(commandsdir + File.separator + args[1] + ".yml");
-				if(f.exists()){
-					String adding = "";
-					for(int i = 2; i < args.length; i++){
-						adding += args[i] + " ";
-					}
-					FileConfiguration config = YamlConfiguration.loadConfiguration(f);
-					try {
-						config.set(adding, "");
-						config.save(f);
-					} catch (Exception e){
-					}
-					player.sendMessage(ChatColor.GREEN + "Successfully added " + ChatColor.GOLD + adding + ChatColor.GREEN + " to " + ChatColor.GOLD + args[1] + ChatColor.GREEN + ".");
-					return true;
-				}else{
-					player.sendMessage(ChatColor.RED + "List " + args[1] + " doesn't exist.");
+					player.sendMessage(ChatColor.RED + "List " + ChatColor.GOLD + args[1] + ChatColor.RED + " doesn't exists.");
 					return true;
 				}
 			}else{
@@ -255,13 +207,13 @@ public class MultiCommand extends JavaPlugin{
 							sendNoPermMsg(player);
 							return true;
 						}
-						FileConfiguration conf = YamlConfiguration.loadConfiguration(new File(commandsdir + File.separator + args[0] + ".yml"));
-						Set<String> CommandsYML = conf.getKeys(false);
-						for(int w = 0; w < CommandsYML.size(); w++){
+						
+						List<String> commands = bukkitconfig.getStringList("Commands." + args[0]);
+						for(int w = 0; w < commands.size(); w++){
 							if(verbooseMode){
-								player.sendMessage(ChatColor.DARK_RED + CommandsYML.toArray()[w].toString());
+								player.sendMessage(ChatColor.DARK_RED + commands.toArray()[w].toString());
 							}
-							String newchatmsg = CommandsYML.toArray()[w].toString();
+							String newchatmsg = commands.toArray()[w].toString();
 							Boolean jump = false;
 							for(int t = 1; t < 6; t++){
 								if((Pattern.compile("\\[\\$" + t + "\\]")).matcher(newchatmsg).find()){
@@ -272,6 +224,10 @@ public class MultiCommand extends JavaPlugin{
 									}
 								}
 							}
+							newchatmsg = newchatmsg.replaceAll("\\$playername", player.getDisplayName());
+							newchatmsg = newchatmsg.replaceAll("\\$playerworld", player.getWorld().getName());
+							newchatmsg = newchatmsg.replaceAll("\\$servermaxplayers", "" + getServer().getMaxPlayers());
+							newchatmsg = newchatmsg.replaceAll("\\$serveronlineplayers", "" + getServer().getOnlinePlayers().length);
 							if((Pattern.compile("\\$1")).matcher(newchatmsg).find()){
 								try{
 									newchatmsg = newchatmsg.replaceAll("\\$1", args[1]);
@@ -321,8 +277,10 @@ public class MultiCommand extends JavaPlugin{
 								player.chat(newchatmsg);
 							}
 						}
+						return true;
 					}
 				}
+				player.sendMessage(ChatColor.RED + "List " + ChatColor.GOLD + args[0] + ChatColor.RED + " doesn't exists.");
 			}
 		}
 		return true;
@@ -332,5 +290,25 @@ public class MultiCommand extends JavaPlugin{
 			player.sendMessage(ChatColor.RED + "You don't have the permission to use this!");
 		else
 			player.sendMessage(ChatColor.RED + "You aren't an OP!");
+	}
+	
+	
+	
+	
+	public void upgrade(){
+		File commandsdir = new File("plugins/MultiCommand/Commands");
+		File[] files = commandsdir.listFiles();
+		for(int i = 0; i < files.length; i++){
+			int yml = files[i].getName().length() - 4;
+			String name = files[i].getName().substring(0, yml);
+			Set<String> commands = YamlConfiguration.loadConfiguration(new File(commandsdir + File.separator + name + ".yml")).getKeys(false);
+			bukkitconfig.set("Commands." + name, new LinkedList<String>(commands));
+			files[i].delete();
+		}
+		commandsdir.delete();
+		try{
+			bukkitconfig.save(configfile);
+			bukkitconfig.load(configfile);
+		}catch(Exception e){}
 	}
 }
