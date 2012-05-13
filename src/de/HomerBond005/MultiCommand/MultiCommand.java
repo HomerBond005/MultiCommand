@@ -211,6 +211,10 @@ public class MultiCommand extends JavaPlugin{
 					player.sendMessage(ChatColor.RED + "Usage: /muco remove <name> <command>");
 					return true;
 				}
+				if(!pc.has(player, "MultiCommand.remove." + args[1])&&!pc.has(player, "MultiCommand.remove.all")&&!pc.has(player, "MultiCommand.all")){
+					sendNoPermMsg(player);
+					return true;
+				}
 				if(bukkitconfig.isSet("Commands." + args[1])){
 					String removing = "";
 					for(int i = 2; i < args.length; i++){

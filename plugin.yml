@@ -1,7 +1,7 @@
 name: MultiCommand
 main: de.HomerBond005.MultiCommand.MultiCommand
 author: HomerBond005
-version: 1.4
+version: 1.4.1
 commands:
     muco:
         description: Main Command.
