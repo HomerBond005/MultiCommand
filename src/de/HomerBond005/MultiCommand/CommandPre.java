@@ -33,8 +33,9 @@ public class CommandPre implements Listener{
 		}else{
 			args = args.substring(0, args.length());
 		}
-		if(plugin.getShortcuts().contains(command)){
-			String executating = plugin.getShortcutExe(command);
+		command = command.toLowerCase();
+		if(plugin.shortcuts.containsKey(command)){
+			String executating = plugin.shortcuts.get(command);
 			if(executating.equalsIgnoreCase(command)){
 				event.getPlayer().sendMessage(ChatColor.RED + "This would cause a loop! Please edit the config.yml.");
 				event.setCancelled(true);

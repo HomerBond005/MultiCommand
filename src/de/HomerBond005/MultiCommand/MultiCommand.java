@@ -8,8 +8,10 @@ package de.HomerBond005.MultiCommand;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.bukkit.ChatColor;
@@ -20,6 +22,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.mcstats.Metrics.Metrics;
 import de.HomerBond005.Permissions.PermissionsChecker;
 
 public class MultiCommand extends JavaPlugin{
@@ -30,6 +33,8 @@ public class MultiCommand extends JavaPlugin{
 	private PluginManager pm;
 	private CommandPre playerlistener = new CommandPre(this);
 	private PermissionsChecker pc;
+	private Metrics metrics;
+	Map<String, String> shortcuts;
 	public void onEnable(){
 		pm = getServer().getPluginManager();
 		if(!new File(mainDir).exists()){
@@ -42,6 +47,7 @@ public class MultiCommand extends JavaPlugin{
 				bukkitconfig.set("Permissions", true);
 				bukkitconfig.set("Shortcuts.TheCommandYouExecute", "TheCommandThatShouldBeExecuted");
 				bukkitconfig.set("verbooseMode", false);
+				bukkitconfig.set("Commands.testList", new ArrayList<String>());
 				bukkitconfig.save(configfile);
 				System.out.println("[MultiCommand]: config.yml created.");
 			}catch(IOException e){
@@ -62,13 +68,20 @@ public class MultiCommand extends JavaPlugin{
 			upgrade();
 			System.out.println("[MultiCommand]: Filesystem upgraded!");
 		}
+		loadShortcuts();
+		try {
+			metrics = new Metrics(this);
+			metrics.start();
+		} catch (IOException e) {
+			System.err.println("[MultiCommand]: Error while enabling Metrics.");
+		}
 		System.out.println("[MultiCommand] is enabled!");
 	}
 	public void onDisable(){
 		System.out.println("[MultiCommand] is disabled!");
 	}
-	private String[] commands(){
-		return bukkitconfig.getConfigurationSection("Commands").getKeys(false).toArray(new String[0]);
+	private Set<String> commands(){
+		return bukkitconfig.getConfigurationSection("Commands").getKeys(false);
 	}
 	private void help(Player player){
 		if(!pc.has(player, "MultiCommand.help")){
@@ -84,19 +97,17 @@ public class MultiCommand extends JavaPlugin{
 		player.sendMessage(ChatColor.RED + "/muco remove <name> <command>    " + ChatColor.YELLOW + "Removes a command from a list.");
 		player.sendMessage(ChatColor.RED + "/muco delete <name>    " + ChatColor.YELLOW + "Deletes a list of commands.");
 	}
-	public Set<String> getShortcuts(){
+	private void loadShortcuts(){
 		try{
 			bukkitconfig.load(configfile);
 		}catch(Exception e){
 		}
-		return bukkitconfig.getConfigurationSection("Shortcuts").getKeys(false);
-	}
-	public String getShortcutExe(String shortcut){
-		try{
-			bukkitconfig.load(configfile);
-		}catch (Exception e){
+		Set<String> section = bukkitconfig.getConfigurationSection("Shortcuts").getKeys(false);
+		Map<String, String> shortcutsTemp = new HashMap<String, String>();
+		for(String shortcut : section){
+			shortcutsTemp.put(shortcut.toLowerCase(), bukkitconfig.getString("Shortcuts." + shortcut));
 		}
-		return bukkitconfig.getString("Shortcuts." + shortcut);
+		shortcuts = shortcutsTemp;
 	}
 	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args){
 		if(command.getName().equalsIgnoreCase("muco")){
@@ -104,32 +115,31 @@ public class MultiCommand extends JavaPlugin{
 			if(sender instanceof Player){
 				player = (Player) sender;
 			}else{
-				handleConsole(args);
-				return true;
+				return handleConsole(args);
 			}
-			if(args.length == 0){
+			try{
+				if(args[0].equalsIgnoreCase("help")){
+					throw new ArrayIndexOutOfBoundsException();
+				}
+			}catch(ArrayIndexOutOfBoundsException e){
 				help(player);
 				return true;
 			}
-			if(args[0].equalsIgnoreCase("help")){
-				help(player);
-			}else if(args[0].equalsIgnoreCase("list")){
+			if(args[0].equalsIgnoreCase("list")){
 				if(!pc.has(player, "MultiCommand.list")&&!pc.has(player, "MultiCommand.all")){
 					sendNoPermMsg(player);
 					return true;
 				}
 				player.sendMessage(ChatColor.GREEN + "Following command lists are set:");
 				String returned = "";
-				if(commands().length == 0){
+				Set<String> commands = commands();
+				if(commands.size() == 0){
 					player.sendMessage(ChatColor.GRAY + "No lists are set.");
 				}else{
-					for(int e = 0; e < commands().length; e++){
-						if(e + 1 == commands().length){
-							returned += commands()[e];	
-						}else{
-							returned += commands()[e] + ", ";
-						}
+					for(String actCommand : commands){
+						returned += actCommand + ", ";
 					}
+					returned = returned.substring(0, returned.length()-2);
 					player.sendMessage(returned);
 				}
 				return true;
@@ -168,7 +178,7 @@ public class MultiCommand extends JavaPlugin{
 					player.sendMessage(ChatColor.RED + args[1] + " already exists.");
 					return true;
 				}else{
-					bukkitconfig.set("Commands." + args[1], new LinkedList<String>());
+					bukkitconfig.set("Commands." + args[1], new ArrayList<String>());
 					try {
 						bukkitconfig.save(configfile);
 					} catch (IOException e) {
@@ -238,19 +248,20 @@ public class MultiCommand extends JavaPlugin{
 					return true;
 				}
 			}else{
-				for(int i = 0; i < commands().length; i++){
-					if(args[0].equalsIgnoreCase(commands()[i])){
+				Set<String> commands = commands();
+				for(String actCommand : commands){
+					if(args[0].equalsIgnoreCase(actCommand)){
 						if(!pc.has(player, "MultiCommand.use." + args[0])&&!pc.has(player, "MultiCommand.use.all")&&!pc.has(player, "MultiCommand.all")){
 							sendNoPermMsg(player);
 							return true;
 						}
 						
-						List<String> commands = bukkitconfig.getStringList("Commands." + args[0]);
-						for(int w = 0; w < commands.size(); w++){
+						List<String> executations = bukkitconfig.getStringList("Commands." + args[0]);
+						for(int w = 0; w < executations.size(); w++){
 							if(verbooseMode){
-								player.sendMessage(ChatColor.DARK_RED + commands.toArray()[w].toString());
+								player.sendMessage(ChatColor.DARK_RED + executations.toArray()[w].toString());
 							}
-							String newchatmsg = commands.toArray()[w].toString();
+							String newchatmsg = executations.toArray()[w].toString();
 							Boolean jump = false;
 							for(int t = 1; t < 6; t++){
 								if((Pattern.compile("\\[\\$" + t + "\\]")).matcher(newchatmsg).find()){
@@ -322,36 +333,40 @@ public class MultiCommand extends JavaPlugin{
 		}
 		return true;
 	}
-	private void handleConsole(String[] args){
-		if(args[0].equalsIgnoreCase("help")){
+	private boolean handleConsole(String[] args){
+		try{
+			if(args[0].equalsIgnoreCase("help")){
+				throw new ArrayIndexOutOfBoundsException();
+			}
+		}catch(ArrayIndexOutOfBoundsException e){
 			System.out.println("[MultiCommand]: Help");
 			System.out.println("[MultiCommand]: muco help    " + "Shows this page.");
 			System.out.println("[MultiCommand]: muco list    " + "Listes all lists of commands.");
 			System.out.println("[MultiCommand]: muco <name>    " + "Executes a list of commands.");
 			System.out.println("[MultiCommand]: muco create <name>    " + "Adds a list of commands.");
 			System.out.println("[MultiCommand]: muco add <name> <command>    " + "Adds a command to a list.");
-			//System.out.println("[MultiCommand]: muco remove <name> <command>    " + "Removes a command from a list.");
+			System.out.println("[MultiCommand]: muco remove <name> <command>    " + "Removes a command from a list.");
 			System.out.println("[MultiCommand]: muco delete <name>    " + "Deletes a list of commands.");
-		}else if(args[0].equalsIgnoreCase("list")){
+			return true;
+		}
+		if(args[0].equalsIgnoreCase("list")){
 			System.out.println("[MultiCommand]: Following command lists are set:");
 			String returned = "";
-			if(commands().length == 0){
+			Set<String> commands = commands();
+			if(commands.size() == 0){
 				System.out.println("[MultiCommand]: No lists are set.");
 			}else{
-				for(int e = 0; e < commands().length; e++){
-					if(e + 1 == commands().length){
-						returned += commands()[e];	
-					}else{
-						returned += commands()[e] + ", ";
-					}
+				for(String actCommand : commands){
+					returned += actCommand + ", ";
 				}
+				returned = returned.substring(0, returned.length()-2);
 				System.out.println("[MultiCommand]: " + returned);
 			}
-			return;
+			return true;
 		}else if(args[0].equalsIgnoreCase("delete")){
 			if(args.length == 1){
 				System.out.println("[MultiCommand]: Usage: /muco delete <name>");
-				return;
+				return true;
 			}
 			if(bukkitconfig.isSet("Commands." +  args[1])){
 				bukkitconfig.set("Commands." + args[1], null);
@@ -361,21 +376,21 @@ public class MultiCommand extends JavaPlugin{
 					System.out.println("[MultiCommand]: Error while deleting " + ChatColor.GOLD + args[1] + ChatColor.RED + "!");
 				}
 				System.out.println("[MultiCommand]: Successfully deleted " + ChatColor.GOLD + args[1] + ChatColor.GREEN + ".");
-				return;
+				return true;
 			}else{
 				System.out.println("[MultiCommand]: List " + args[1] + " doesn't exists.");
-				return;
+				return true;
 			}
 		}else if(args[0].equalsIgnoreCase("create")){
 			if(args.length == 1){
 				System.out.println("[MultiCommand]: Usage: /muco create <name>");
-				return;
+				return true;
 			}
 			if(bukkitconfig.isSet("Commands." + args[1])){
 				System.out.println("[MultiCommand]: " +  args[1] + " already exists.");
-				return;
+				return true;
 			}else{
-				bukkitconfig.set("Commands." + args[1], new LinkedList<String>());
+				bukkitconfig.set("Commands." + args[1], new ArrayList<String>());
 				try {
 					bukkitconfig.save(configfile);
 				} catch (IOException e) {
@@ -383,12 +398,12 @@ public class MultiCommand extends JavaPlugin{
 					e.printStackTrace();
 				}
 				System.out.println("[MultiCommand]: List " + args[1] + " successfully created.");
-				return;
+				return true;
 			}
 		}else if(args[0].equalsIgnoreCase("add")){
 			if(args.length < 3){
 				System.out.println("[MultiCommand]: Usage: /muco add <name> <command>");
-				return;
+				return true;
 			}
 			if(bukkitconfig.isSet("Commands." + args[1])){
 				String adding = "";
@@ -404,15 +419,15 @@ public class MultiCommand extends JavaPlugin{
 				} catch (Exception e){
 				}
 				System.out.println("[MultiCommand]: Successfully added " + adding + " to " + args[1] + ".");
-				return;
+				return true;
 			}else{
 				System.out.println("[MultiCommand]: List " + args[1] + " doesn't exists.");
-				return;
+				return true;
 			}
 		}else if(args[0].equalsIgnoreCase("remove")){
 			if(args.length < 3){
 				System.out.println("[MultiCommand]: Usage: /muco remove <name> <command>");
-				return;
+				return true;
 			}
 			if(bukkitconfig.isSet("Commands." + args[1])){
 				String removing = "";
@@ -431,17 +446,18 @@ public class MultiCommand extends JavaPlugin{
 					bukkitconfig.save(configfile);
 				} catch (Exception e){
 				}
-				return;
+				return true;
 			}else{
 				System.out.println("[MultiCommand]: List " + args[1] + " doesn't exists.");
-				return;
+				return true;
 			}
 		}else{
-			for(int i = 0; i < commands().length; i++){
-				if(args[0].equalsIgnoreCase(commands()[i])){
-					List<String> commands = bukkitconfig.getStringList("Commands." + args[0]);
-					for(int w = 0; w < commands.size(); w++){
-						String newchatmsg = commands.toArray()[w].toString().substring(1);
+			Set<String> commands = commands();
+			for(String actCommand : commands){
+				if(args[0].equalsIgnoreCase(actCommand)){
+					List<String> executations = bukkitconfig.getStringList("Commands." + args[0]);
+					for(int w = 0; w < executations.size(); w++){
+						String newchatmsg = executations.toArray()[w].toString().substring(1);
 						if(verbooseMode){
 							System.out.println("[MultiCommand]: " + newchatmsg);
 						}
@@ -508,10 +524,11 @@ public class MultiCommand extends JavaPlugin{
 							getServer().dispatchCommand(getServer().getConsoleSender(), newchatmsg);
 						}
 					}
-					return;
+					return true;
 				}
 			}
 			System.out.println("[MultiCommand]: List " + args[0] + " doesn't exists.");
+			return true;
 		}
 	}
 	private void sendNoPermMsg(Player player){
@@ -520,18 +537,14 @@ public class MultiCommand extends JavaPlugin{
 		else
 			player.sendMessage(ChatColor.RED + "You aren't an OP!");
 	}
-	
-	
-	
-	
-	public void upgrade(){
+	private void upgrade(){
 		File commandsdir = new File("plugins/MultiCommand/Commands");
 		File[] files = commandsdir.listFiles();
 		for(int i = 0; i < files.length; i++){
 			int yml = files[i].getName().length() - 4;
 			String name = files[i].getName().substring(0, yml);
 			Set<String> commands = YamlConfiguration.loadConfiguration(new File(commandsdir + File.separator + name + ".yml")).getKeys(false);
-			bukkitconfig.set("Commands." + name, new LinkedList<String>(commands));
+			bukkitconfig.set("Commands." + name, new ArrayList<String>(commands));
 			files[i].delete();
 		}
 		commandsdir.delete();
