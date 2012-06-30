@@ -1,8 +1,11 @@
 name: MultiCommand
 main: de.HomerBond005.MultiCommand.MultiCommand
 author: HomerBond005
-version: 1.6
+version: 1.7
 commands:
     muco:
         description: Main Command.
         usage: Type /<command> help for help.
+    nothingatall:
+        description: Empty command
+        usage: No usage.
