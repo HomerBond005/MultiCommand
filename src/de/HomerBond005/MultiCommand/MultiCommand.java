@@ -22,9 +22,11 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import de.HomerBond005.MultiCommand.Metrics.Graph;
 
 public class MultiCommand extends JavaPlugin{
-	private boolean verbooseMode = false;
+	private boolean verbooseMode;
+	private boolean playerDisplayName;
 	private PluginManager pm;
 	private CommandPre playerlistener = new CommandPre(this);
 	private PermissionsChecker pc;
@@ -50,12 +52,14 @@ public class MultiCommand extends JavaPlugin{
 		getConfig().addDefault("Commands", new HashMap<String, Object>());
 		getConfig().addDefault("Permissions", true);
 		getConfig().addDefault("verbooseMode", false);
+		getConfig().addDefault("playerDisplayName", true);
 		getConfig().options().copyDefaults(true);
 		saveConfig();
 		reloadConfig();
 		pm.registerEvents(playerlistener, this);
 		pc = new PermissionsChecker(this, getConfig().getBoolean("Permissions", false));
 		verbooseMode = getConfig().getBoolean("verbooseMode", false);
+		playerDisplayName = getConfig().getBoolean("playerDisplayName");
 		loadShortcuts();
 		try {
 			metrics = new Metrics(this);
@@ -65,7 +69,20 @@ public class MultiCommand extends JavaPlugin{
 			}else{
 				usingVerboose = "Not using verboose mode";
 			}
-			metrics.addCustomData(new Metrics.Plotter(usingVerboose) {
+			Graph graphverboose = metrics.createGraph("Default");
+			graphverboose.addPlotter(new Metrics.Plotter(usingVerboose) {
+				@Override
+				public int getValue() {
+					return 1;
+				}
+			});
+			String playername;
+			if(playerDisplayName)
+				playername = "Display name";
+			else
+				playername = "Player name";
+			Graph graphplayername = metrics.createGraph("Player name layout");
+			graphplayername.addPlotter(new Metrics.Plotter(playername) {
 				@Override
 				public int getValue() {
 					return 1;
@@ -98,15 +115,13 @@ public class MultiCommand extends JavaPlugin{
 			if(sender instanceof Player){
 				player = (Player) sender;
 			}
-			try{
-				if(args[0].equalsIgnoreCase("help")){
-					throw new ArrayIndexOutOfBoundsException();
-				}
-			}catch(ArrayIndexOutOfBoundsException e){
+			if(args.length == 0)
+				args = new String[]{"help"};
+			if(args[0].equalsIgnoreCase("help")){
 				if(!checkPerm(sender, "MultiCommand.help")){
 					pc.sendNoPermMsg((Player) sender);
 				}else{
-					sender.sendMessage(ChatColor.GOLD+"MultiCommand"+ChatColor.GRAY+" Help");
+					sender.sendMessage(ChatColor.GOLD+""+ChatColor.BOLD+"MultiCommand"+ChatColor.GRAY+ChatColor.BOLD+" Help");
 					sender.sendMessage(ChatColor.GOLD+"/muco help "+ChatColor.GRAY+"Shows this page.");
 					sender.sendMessage(ChatColor.GOLD+"/muco list "+ChatColor.GRAY+"Listes all lists of commands.");
 					sender.sendMessage(ChatColor.GOLD+"/muco <name> "+ChatColor.GRAY+"Executes a list of commands.");
@@ -117,8 +132,7 @@ public class MultiCommand extends JavaPlugin{
 					sender.sendMessage(ChatColor.GOLD+"/muco show <name> "+ChatColor.GRAY+"Shows all commands in a list.");
 				}
 				return true;
-			}
-			if(args[0].equalsIgnoreCase("reload")){
+			}else if(args[0].equalsIgnoreCase("reload")){
 				if(!checkPerm(sender, "MultiCommand.reload")&&!checkPerm(sender, "MultiCommand.all")){
 					pc.sendNoPermMsg(player);
 					return true;
@@ -193,12 +207,12 @@ public class MultiCommand extends JavaPlugin{
 					return true;
 				}
 				if(getConfig().isSet("Commands."+args[1])){
-					sender.sendMessage(ChatColor.RED+args[1]+" already exists.");
+					sender.sendMessage(ChatColor.GOLD+args[1]+ChatColor.RED+" already exists.");
 					return true;
 				}else{
 					getConfig().set("Commands."+args[1], new ArrayList<String>());
 					saveConfig();
-					sender.sendMessage(ChatColor.RED+"The list "+ChatColor.GOLD+args[1]+ChatColor.RED+" doesn't exist.");
+					sender.sendMessage(ChatColor.GREEN+"The list "+ChatColor.GOLD+args[1]+ChatColor.GREEN+" was successfully created.");
 					return true;
 				}
 			}else if(args[0].equalsIgnoreCase("add")){
@@ -281,7 +295,10 @@ public class MultiCommand extends JavaPlugin{
 								newchatmsg = newchatmsg.replaceAll("\\$playername", "Console");
 								newchatmsg = newchatmsg.replaceAll("\\$playerworld", "Console");
 							}else{
-								newchatmsg = newchatmsg.replaceAll("\\$playername", player.getDisplayName());
+								if(playerDisplayName)
+									newchatmsg = newchatmsg.replaceAll("\\$playername", player.getDisplayName());
+								else
+									newchatmsg = newchatmsg.replaceAll("\\$playername", player.getName());
 								newchatmsg = newchatmsg.replaceAll("\\$playerworld", player.getWorld().getName());
 							}
 							newchatmsg = newchatmsg.replaceAll("\\$servermaxplayers", ""+getServer().getMaxPlayers());
@@ -341,7 +358,7 @@ public class MultiCommand extends JavaPlugin{
 						return true;
 					}
 				}
-				sender.sendMessage(ChatColor.RED+"The list "+ChatColor.GOLD+args[1]+ChatColor.RED+" doesn't exist.");
+				sender.sendMessage(ChatColor.RED+"The list "+ChatColor.GOLD+args[0]+ChatColor.RED+" doesn't exist.");
 			}
 		}
 		return true;
