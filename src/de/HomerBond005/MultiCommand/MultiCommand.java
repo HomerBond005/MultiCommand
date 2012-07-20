@@ -34,6 +34,7 @@ public class MultiCommand extends JavaPlugin{
 	private Logger log;
 	private Updater updater;
 	private Map<String, String> shortcuts;
+	private int maxvariables;
 	
 	/**
 	 * @see org.bukkit.plugin.java.JavaPlugin#onEnable()
@@ -266,8 +267,7 @@ public class MultiCommand extends JavaPlugin{
 							if(verbooseMode)
 								sender.sendMessage(ChatColor.DARK_RED+executations.get(w));
 							String newchatmsg = executations.get(w);
-							boolean jump = false;
-							for(int t = 1; t < 6; t++){
+							for(int t = 1; t < maxvariables+1; t++){
 								if((Pattern.compile("\\[\\$"+t+"\\]")).matcher(newchatmsg).find()){
 									try{
 										newchatmsg = newchatmsg.replaceAll("\\[\\$"+t+"\\]", args[t]);
@@ -276,6 +276,7 @@ public class MultiCommand extends JavaPlugin{
 									}
 								}
 							}
+							String removedoptionalargs = newchatmsg;
 							if(player == null){
 								newchatmsg = newchatmsg.replaceAll("\\$playername", "Console");
 								newchatmsg = newchatmsg.replaceAll("\\$playerworld", "Console");
@@ -288,52 +289,27 @@ public class MultiCommand extends JavaPlugin{
 							}
 							newchatmsg = newchatmsg.replaceAll("\\$servermaxplayers", ""+getServer().getMaxPlayers());
 							newchatmsg = newchatmsg.replaceAll("\\$serveronlineplayers", ""+getServer().getOnlinePlayers().length);
-							if((Pattern.compile("\\$1")).matcher(newchatmsg).find()){
-								try{
-									newchatmsg = newchatmsg.replaceAll("\\$1", args[1]);
-								}catch(ArrayIndexOutOfBoundsException e){
-									sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires at least one argument!");
-									sender.sendMessage(ChatColor.RED+"Usage: /muco "+args[0]+" <arg1>");
-									jump = true;
+							boolean error = false;
+							for(int t = 1; t < maxvariables+1; t++){
+								if((Pattern.compile("\\$"+t)).matcher(newchatmsg).find()){
+									try{
+										newchatmsg = newchatmsg.replaceAll("\\$"+t, args[t]);
+									}catch(ArrayIndexOutOfBoundsException e){
+										error = true;
+										break;
+									}
 								}
 							}
-							if((Pattern.compile("\\$2")).matcher(newchatmsg).find()&&!jump){
-								try{
-									newchatmsg = newchatmsg.replaceAll("\\$2", args[2]);
-								}catch(ArrayIndexOutOfBoundsException e){
-									sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires at least two arguments!");
-									sender.sendMessage(ChatColor.RED+"Usage: /muco "+args[0]+" <arg1> <arg2>");
-									jump = true;
+							if(error){
+								sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires more arguments!");
+								String msg = ChatColor.RED+"Usage: /muco "+args[0];
+								for(int t = 1; t < maxvariables+1; t++){
+									if((Pattern.compile("\\$"+t)).matcher(removedoptionalargs).find()){
+										msg += " <arg"+t+">";
+									}
 								}
-							}
-							if((Pattern.compile("\\$3")).matcher(newchatmsg).find()&&!jump){
-								try{
-									newchatmsg = newchatmsg.replaceAll("\\$3", args[3]);
-								}catch(ArrayIndexOutOfBoundsException e){
-									sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires at least three arguments!");
-									sender.sendMessage(ChatColor.RED+"Usage: /muco "+args[0]+" <arg1> <arg2> <arg3>");
-									jump = true;
-								}
-							}
-							if((Pattern.compile("\\$4")).matcher(newchatmsg).find()&&!jump){
-								try{
-									newchatmsg = newchatmsg.replaceAll("\\$4", args[4]);
-								}catch(ArrayIndexOutOfBoundsException e){
-									sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires at least four arguments!");
-									sender.sendMessage(ChatColor.RED+"Usage: /muco "+args[0]+" <arg1> <arg2> <arg3> <arg4>");
-									jump = true;
-								}
-							}
-							if((Pattern.compile("\\$5")).matcher(newchatmsg).find()&&!jump){
-								try{
-									newchatmsg = newchatmsg.replaceAll("\\$5", args[5]);
-								}catch(ArrayIndexOutOfBoundsException e){
-									sender.sendMessage(ChatColor.RED+"The command '"+ChatColor.GRAY+executations.get(w)+ChatColor.RED+"' requires at least three arguments!");
-									sender.sendMessage(ChatColor.RED+"Usage: /muco "+args[0]+" <arg1> <arg2> <arg3> <arg4> <arg5>");
-									jump = true;
-								}
-							}
-							if(jump == false){
+								sender.sendMessage(msg);
+							}else{
 								if(player == null)
 									getServer().dispatchCommand(getServer().getConsoleSender(), newchatmsg);
 								else
@@ -365,12 +341,14 @@ public class MultiCommand extends JavaPlugin{
 		getConfig().addDefault("Permissions", true);
 		getConfig().addDefault("verbooseMode", false);
 		getConfig().addDefault("playerDisplayName", true);
+		getConfig().addDefault("maxvariables", 5);
 		getConfig().options().copyDefaults(true);
 		saveConfig();
 		reloadConfig();
 		pc = new PermissionsChecker(this, getConfig().getBoolean("Permissions"));
 		verbooseMode = getConfig().getBoolean("verbooseMode");
 		playerDisplayName = getConfig().getBoolean("playerDisplayName");
+		maxvariables = getConfig().getInt("maxvariables");
 		loadShortcuts();
 	}
 	
