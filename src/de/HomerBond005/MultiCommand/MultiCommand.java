@@ -28,7 +28,7 @@ public class MultiCommand extends JavaPlugin{
 	private boolean verbooseMode;
 	private boolean playerDisplayName;
 	private PluginManager pm;
-	private CommandPre playerlistener = new CommandPre(this);
+	private CommandPre playerlistener;
 	private PermissionsChecker pc;
 	private Metrics metrics;
 	private Logger log;
@@ -42,25 +42,9 @@ public class MultiCommand extends JavaPlugin{
 	public void onEnable(){
 		log = getLogger();
 		pm = getServer().getPluginManager();
-		if(!new File(getDataFolder()+File.separator+"config.yml").exists()){
-			getConfig().set("Shortcuts.TheCommandYouExecute", "TheCommandThatShouldBeExecuted");
-			getConfig().set("Commands.testList", new ArrayList<String>());
-			saveConfig();
-			log.log(Level.INFO, "config.yml created.");
-		}
-		getConfig().addDefault("Shortcuts", new HashMap<String, Object>());
-		getConfig().addDefault("Commands", new HashMap<String, Object>());
-		getConfig().addDefault("Permissions", true);
-		getConfig().addDefault("verbooseMode", false);
-		getConfig().addDefault("playerDisplayName", true);
-		getConfig().options().copyDefaults(true);
-		saveConfig();
-		reloadConfig();
+		playerlistener = new CommandPre(this);
 		pm.registerEvents(playerlistener, this);
-		pc = new PermissionsChecker(this, getConfig().getBoolean("Permissions", false));
-		verbooseMode = getConfig().getBoolean("verbooseMode", false);
-		playerDisplayName = getConfig().getBoolean("playerDisplayName");
-		loadShortcuts();
+		reload();
 		try {
 			metrics = new Metrics(this);
 			String usingVerboose;
@@ -137,8 +121,9 @@ public class MultiCommand extends JavaPlugin{
 					pc.sendNoPermMsg(player);
 					return true;
 				}
-				reloadConfig();
-				loadShortcuts();
+				reload();
+				sender.sendMessage(ChatColor.GREEN+"Successfully reloaded MultiCommand!");
+				return true;
 			}else if(args[0].equalsIgnoreCase("list")){
 				if(!checkPerm(sender, "MultiCommand.list")&&!checkPerm(sender, "MultiCommand.all")){
 					pc.sendNoPermMsg(player);
@@ -362,6 +347,31 @@ public class MultiCommand extends JavaPlugin{
 			}
 		}
 		return true;
+	}
+	
+	/**
+	 * Reload the attributes from MultiCommand
+	 */
+	private void reload(){
+		if(!new File(getDataFolder()+File.separator+"config.yml").exists()){
+			getConfig().set("Shortcuts.TheCommandYouExecute", "TheCommandThatShouldBeExecuted");
+			getConfig().set("Commands.testList", new ArrayList<String>());
+			saveConfig();
+			log.log(Level.INFO, "config.yml created.");
+		}
+		reloadConfig();
+		getConfig().addDefault("Shortcuts", new HashMap<String, Object>());
+		getConfig().addDefault("Commands", new HashMap<String, Object>());
+		getConfig().addDefault("Permissions", true);
+		getConfig().addDefault("verbooseMode", false);
+		getConfig().addDefault("playerDisplayName", true);
+		getConfig().options().copyDefaults(true);
+		saveConfig();
+		reloadConfig();
+		pc = new PermissionsChecker(this, getConfig().getBoolean("Permissions"));
+		verbooseMode = getConfig().getBoolean("verbooseMode");
+		playerDisplayName = getConfig().getBoolean("playerDisplayName");
+		loadShortcuts();
 	}
 	
 	/**
