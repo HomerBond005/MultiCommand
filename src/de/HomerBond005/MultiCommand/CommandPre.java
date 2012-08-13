@@ -6,8 +6,10 @@
  */
 package de.HomerBond005.MultiCommand;
 
+import java.util.LinkedList;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -26,7 +28,24 @@ public class CommandPre implements Listener{
 		if(event.isCancelled()){
 			return;
 		}
-		String[] splitted = event.getMessage().substring(1).split(" ");
+		Player player = event.getPlayer();
+		String prepared = event.getMessage().trim().substring(1);
+		LinkedList<String> discom = plugin.getDisabledCommands();
+		boolean isDisabled = false;
+		for(String com : discom){
+			if(("/"+prepared).startsWith(com)){
+				isDisabled = true;
+				break;
+			}
+		}
+		if(isDisabled)
+			if(!plugin.pc.has(player, "MultiCommand.ignoreDisabledCommands")){
+				if(plugin.commandDisabledMsg().trim().length() != 0)
+					player.sendMessage(plugin.commandDisabledMsg().replaceAll("(&([a-f0-9]))", "\u00A7$2"));
+				event.setCancelled(true);
+				return;
+			}
+		String[] splitted = prepared.split(" ");
 		String command = splitted[0];
 		String args = " ";
 		for(int i = 1; i < splitted.length; i++){
@@ -37,15 +56,12 @@ public class CommandPre implements Listener{
 		if(plugin.getShortcuts().containsKey(command)){
 			String executating = plugin.getShortcuts().get(command);
 			if(executating.equalsIgnoreCase(command)){
-				event.getPlayer().sendMessage(ChatColor.RED + "This would cause a loop! Please edit the config.yml.");
+				player.sendMessage(ChatColor.RED + "This would cause a loop! Please edit the config.yml.");
 				event.setCancelled(true);
-				return;
+			}else{
+				event.setCancelled(true);
+				player.chat("/" + executating + args);
 			}
-			event.setCancelled(true);
-			event.getPlayer().chat("/" + executating + args);
-			return;
-		}else{
-			return;
 		}
 	}
 	

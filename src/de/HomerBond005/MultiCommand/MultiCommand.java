@@ -10,11 +10,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -29,12 +31,14 @@ public class MultiCommand extends JavaPlugin{
 	private boolean playerDisplayName;
 	private PluginManager pm;
 	private CommandPre playerlistener;
-	private PermissionsChecker pc;
+	PermissionsChecker pc;
 	private Metrics metrics;
 	private Logger log;
 	private Updater updater;
 	private Map<String, String> shortcuts;
+	private LinkedList<String> disabledCommands;
 	private int maxvariables;
+	private String commandDisabledMsg;
 	
 	/**
 	 * @see org.bukkit.plugin.java.JavaPlugin#onEnable()
@@ -77,7 +81,7 @@ public class MultiCommand extends JavaPlugin{
 		} catch (IOException e) {
 			log.log(Level.WARNING, "Error while enabling Metrics.");
 		}
-		updater = new Updater(this);
+		updater = new Updater(this, getConfig().getBoolean("updateReminderEnabled", true));
 		getServer().getPluginManager().registerEvents(updater, this);
 		log.log(Level.INFO, "is enabled!");
 	}
@@ -109,12 +113,14 @@ public class MultiCommand extends JavaPlugin{
 					sender.sendMessage(ChatColor.GOLD+""+ChatColor.BOLD+"MultiCommand"+ChatColor.GRAY+ChatColor.BOLD+" Help");
 					sender.sendMessage(ChatColor.GOLD+"/muco help "+ChatColor.GRAY+"Shows this page.");
 					sender.sendMessage(ChatColor.GOLD+"/muco list "+ChatColor.GRAY+"Listes all lists of commands.");
+					sender.sendMessage(ChatColor.GOLD+"/muco reload "+ChatColor.GRAY+"Reload the config.");
 					sender.sendMessage(ChatColor.GOLD+"/muco <name> "+ChatColor.GRAY+"Executes a list of commands.");
 					sender.sendMessage(ChatColor.GOLD+"/muco create <name> "+ChatColor.GRAY+"Adds a list of commands.");
 					sender.sendMessage(ChatColor.GOLD+"/muco add <name> <command> "+ChatColor.GRAY+"Adds a command to a list.");
 					sender.sendMessage(ChatColor.GOLD+"/muco remove <name> <command> "+ChatColor.GRAY+"Removes a command from a list.");
 					sender.sendMessage(ChatColor.GOLD+"/muco delete <name> "+ChatColor.GRAY+"Deletes a list of commands.");
 					sender.sendMessage(ChatColor.GOLD+"/muco show <name> "+ChatColor.GRAY+"Shows all commands in a list.");
+					sender.sendMessage(ChatColor.GOLD+"/muco disable "+ChatColor.GRAY+"Options for disabling commands.");
 				}
 				return true;
 			}else if(args[0].equalsIgnoreCase("reload")){
@@ -254,6 +260,74 @@ public class MultiCommand extends JavaPlugin{
 					sender.sendMessage(ChatColor.RED+"The list "+ChatColor.GOLD+args[1]+ChatColor.RED+" doesn't exist.");
 					return true;
 				}
+			}else if(args[0].equalsIgnoreCase("disable")){
+				if(args.length == 1||(args.length == 2 && args[1].equalsIgnoreCase("help"))){
+					sender.sendMessage(ChatColor.GOLD+""+ChatColor.BOLD+"MultiCommand"+ChatColor.GRAY+ChatColor.BOLD+" Command Disable Help");
+					sender.sendMessage(ChatColor.GOLD+"/muco disable list "+ChatColor.GRAY+"Listes all disabled commands.");
+					sender.sendMessage(ChatColor.GOLD+"/muco disable disable <command> "+ChatColor.GRAY+"Disable a command.");
+					sender.sendMessage(ChatColor.GOLD+"/muco disable enable <command> "+ChatColor.GRAY+"Enable a disabled command.");
+					return true;
+				}
+				if(args[1].equalsIgnoreCase("list")){
+					if(checkPerm(sender, "MultiCommand.disable.list")){
+						sender.sendMessage(ChatColor.GRAY+"The following commands are disabled:");
+						for(String com : disabledCommands){
+							sender.sendMessage(ChatColor.GOLD+com);
+						}
+						return true;
+					}else{
+						pc.sendNoPermMsg(player);
+						return true;
+					}
+				}
+				if(args[1].equalsIgnoreCase("disable")){
+					if(checkPerm(sender, "MultiCommand.disable.disable")){
+						if(args.length >= 3){
+							String com = "";
+							for(int i = 2; i < args.length; i++){
+								com += args[i]+" ";
+							}
+							com  = com.trim();
+							if(!disabledCommands.contains(com)){
+								disabledCommands.add(com);
+								reloadConfig();
+								getConfig().set("DisabledCommands", disabledCommands);
+								saveConfig();
+								sender.sendMessage(ChatColor.GREEN+"Successfully disabled the command "+ChatColor.GOLD+com+ChatColor.GREEN+".");
+							}else
+								sender.sendMessage(ChatColor.RED+"The command "+ChatColor.GOLD+com+ChatColor.RED+" is already disabled!");
+						}else
+							sender.sendMessage(ChatColor.RED+"Usage: /muco disable disable <command>");
+						return true;
+					}else{
+						pc.sendNoPermMsg(player);
+						return true;
+					}
+				}
+				if(args[1].equalsIgnoreCase("enable")){
+					if(checkPerm(sender, "MultiCommand.disable.enable")){
+						if(args.length >= 3){
+							String com = "";
+							for(int i = 2; i < args.length; i++){
+								com += args[i]+" ";
+							}
+							com = com.trim();
+							if(disabledCommands.contains(com)){
+								disabledCommands.remove(com);
+								reloadConfig();
+								getConfig().set("DisabledCommands", disabledCommands);
+								saveConfig();
+								sender.sendMessage(ChatColor.GREEN+"Successfully enabled the command "+ChatColor.GOLD+com+ChatColor.GREEN+".");
+							}else
+								sender.sendMessage(ChatColor.RED+"The command "+ChatColor.GOLD+com+ChatColor.RED+" is not disabled!");
+						}else
+							sender.sendMessage(ChatColor.RED+"Usage: /muco disable enable <command>");
+						return true;
+					}else{
+						pc.sendNoPermMsg(player);
+						return true;
+					}
+				}
 			}else{
 				Set<String> commands = commands();
 				for(String actCommand : commands){
@@ -263,37 +337,47 @@ public class MultiCommand extends JavaPlugin{
 							return true;
 						}
 						List<String> executations = getConfig().getStringList("Commands."+args[0]);
+						long totaldelay = 0L;
 						for(int w = 0; w < executations.size(); w++){
-							if(verbooseMode)
-								sender.sendMessage(ChatColor.DARK_RED+executations.get(w));
-							String newchatmsg = executations.get(w);
+							String chatmsg = executations.get(w);
 							for(int t = 1; t < maxvariables+1; t++){
-								if((Pattern.compile("\\[\\$"+t+"\\]")).matcher(newchatmsg).find()){
+								if((Pattern.compile("\\[\\$"+t+"\\]")).matcher(chatmsg).find()){
 									try{
-										newchatmsg = newchatmsg.replaceAll("\\[\\$"+t+"\\]", args[t]);
+										chatmsg = chatmsg.replaceAll("\\[\\$"+t+"\\]", args[t]);
 									}catch(ArrayIndexOutOfBoundsException e){
-										newchatmsg = newchatmsg.replaceAll("\\[\\$"+t+"\\]", "");
+										chatmsg = chatmsg.replaceAll("\\[\\$"+t+"\\]", "");
 									}
 								}
 							}
-							String removedoptionalargs = newchatmsg;
+							Matcher delaymatcher = Pattern.compile("^\\[\\d+\\]").matcher(chatmsg);
+							if(delaymatcher.find()){
+								totaldelay += 20*Integer.parseInt(delaymatcher.group(0).replaceAll("\\[", "").replaceAll("\\]", ""));
+								chatmsg = delaymatcher.replaceFirst("");
+							}
 							if(player == null){
-								newchatmsg = newchatmsg.replaceAll("\\$playername", "Console");
-								newchatmsg = newchatmsg.replaceAll("\\$playerworld", "Console");
+								Matcher slashmatcher = Pattern.compile("^\\/").matcher(chatmsg);
+								if(slashmatcher.find()){
+									chatmsg = slashmatcher.replaceFirst("");
+								}
+							}
+							String removedoptionalargs = chatmsg;
+							if(player == null){
+								chatmsg = chatmsg.replaceAll("\\$playername", "Console");
+								chatmsg = chatmsg.replaceAll("\\$playerworld", "Console");
 							}else{
 								if(playerDisplayName)
-									newchatmsg = newchatmsg.replaceAll("\\$playername", player.getDisplayName());
+									chatmsg = chatmsg.replaceAll("\\$playername", player.getDisplayName());
 								else
-									newchatmsg = newchatmsg.replaceAll("\\$playername", player.getName());
-								newchatmsg = newchatmsg.replaceAll("\\$playerworld", player.getWorld().getName());
+									chatmsg = chatmsg.replaceAll("\\$playername", player.getName());
+								chatmsg = chatmsg.replaceAll("\\$playerworld", player.getWorld().getName());
 							}
-							newchatmsg = newchatmsg.replaceAll("\\$servermaxplayers", ""+getServer().getMaxPlayers());
-							newchatmsg = newchatmsg.replaceAll("\\$serveronlineplayers", ""+getServer().getOnlinePlayers().length);
+							chatmsg = chatmsg.replaceAll("\\$servermaxplayers", ""+getServer().getMaxPlayers());
+							chatmsg = chatmsg.replaceAll("\\$serveronlineplayers", ""+getServer().getOnlinePlayers().length);
 							boolean error = false;
 							for(int t = 1; t < maxvariables+1; t++){
-								if((Pattern.compile("\\$"+t)).matcher(newchatmsg).find()){
+								if((Pattern.compile("\\$"+t)).matcher(chatmsg).find()){
 									try{
-										newchatmsg = newchatmsg.replaceAll("\\$"+t, args[t]);
+										chatmsg = chatmsg.replaceAll("\\$"+t, args[t]);
 									}catch(ArrayIndexOutOfBoundsException e){
 										error = true;
 										break;
@@ -310,10 +394,26 @@ public class MultiCommand extends JavaPlugin{
 								}
 								sender.sendMessage(msg);
 							}else{
-								if(player == null)
-									getServer().dispatchCommand(getServer().getConsoleSender(), newchatmsg);
-								else
-									player.chat(newchatmsg);
+								final String finalchatmsg = chatmsg;
+								final long finaldelay = totaldelay;
+								if(player == null){
+									getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable(){
+										public void run(){
+											if(verbooseMode)
+												getServer().getConsoleSender().sendMessage(ChatColor.RED+"Executing "+ChatColor.DARK_RED+finalchatmsg+ChatColor.RED+" after "+ChatColor.DARK_RED+(finaldelay/20)+ChatColor.RED+" seconds after the command executation.");
+											getServer().dispatchCommand(getServer().getConsoleSender(), finalchatmsg);
+										}
+									}, totaldelay);
+								}else{
+									final Player finalplayer = player;
+									getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable(){
+										public void run(){
+											if(verbooseMode)
+												finalplayer.sendMessage(ChatColor.RED+"Executing "+ChatColor.DARK_RED+finalchatmsg+ChatColor.RED+" after "+ChatColor.DARK_RED+(finaldelay/20)+ChatColor.RED+" seconds after the command executation.");
+											finalplayer.chat(finalchatmsg);
+										}
+									}, totaldelay);
+								}
 							}
 						}
 						return true;
@@ -338,10 +438,13 @@ public class MultiCommand extends JavaPlugin{
 		reloadConfig();
 		getConfig().addDefault("Shortcuts", new HashMap<String, Object>());
 		getConfig().addDefault("Commands", new HashMap<String, Object>());
+		getConfig().addDefault("DisabledCommands", new LinkedList<String>());
+		getConfig().addDefault("commandDisabledMsg", "&cThis command is disabled!");
 		getConfig().addDefault("Permissions", true);
 		getConfig().addDefault("verbooseMode", false);
 		getConfig().addDefault("playerDisplayName", true);
 		getConfig().addDefault("maxvariables", 5);
+		getConfig().addDefault("updateReminderEnabled", true);
 		getConfig().options().copyDefaults(true);
 		saveConfig();
 		reloadConfig();
@@ -349,7 +452,8 @@ public class MultiCommand extends JavaPlugin{
 		verbooseMode = getConfig().getBoolean("verbooseMode");
 		playerDisplayName = getConfig().getBoolean("playerDisplayName");
 		maxvariables = getConfig().getInt("maxvariables");
-		loadShortcuts();
+		commandDisabledMsg = getConfig().getString("commandDisabledMsg");
+		loadCommands();
 	}
 	
 	/**
@@ -361,20 +465,36 @@ public class MultiCommand extends JavaPlugin{
 	}
 	
 	/**
+	 * Get all disabled commands
+	 * @return All disabled commands in a String list with all arguments that are given
+	 */
+	public LinkedList<String> getDisabledCommands(){
+		return disabledCommands;
+	}
+	
+	public String commandDisabledMsg(){
+		return commandDisabledMsg;
+	}
+	
+	/**
 	 * Load the shortcuts from the config
 	 */
-	private void loadShortcuts(){
+	private void loadCommands(){
 		reloadConfig();
 		if(!getConfig().isSet("Shortcuts")){
 			getConfig().set("Shortcuts", new HashMap<String, Object>());
 			saveConfig();
 		}
 		Set<String> section = getConfig().getConfigurationSection("Shortcuts").getKeys(false);
-		Map<String, String> shortcutsTemp = new HashMap<String, String>();
+		shortcuts = new HashMap<String, String>();
 		for(String shortcut : section){
-			shortcutsTemp.put(shortcut.toLowerCase(), getConfig().getString("Shortcuts."+shortcut));
+			shortcuts.put(shortcut.toLowerCase(), getConfig().getString("Shortcuts."+shortcut));
 		}
-		shortcuts = shortcutsTemp;
+		
+		disabledCommands = new LinkedList<String>();
+		for(String cmd : getConfig().getStringList("DisabledCommands")){
+			disabledCommands.add(cmd.trim().toLowerCase());
+		}
 	}
 	
 	/**
