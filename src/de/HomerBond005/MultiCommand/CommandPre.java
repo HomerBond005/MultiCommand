@@ -77,12 +77,11 @@ public class CommandPre implements Listener{
 		command = command.toLowerCase();
 		if(plugin.getShortcuts().containsKey(command)){
 			String executating = plugin.getShortcuts().get(command);
+			event.setCommand("nothingatall");
 			if(executating.equalsIgnoreCase(command)){
 				Bukkit.getConsoleSender().sendMessage(ChatColor.RED + "This would cause a loop! Please edit the config.yml.");
-				event.setCommand("nothingatall");
 				return;
 			}
-			event.setCommand("nothingatall");
 			Bukkit.dispatchCommand(Bukkit.getConsoleSender(), executating + args);
 			return;
 		}else{

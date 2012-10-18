@@ -98,7 +98,7 @@ public class MultiCommand extends JavaPlugin{
 	 * @see org.bukkit.plugin.java.JavaPlugin#onCommand(org.bukkit.command.CommandSender, org.bukkit.command.Command, java.lang.String, java.lang.String[])
 	 */
 	@Override
-	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args){
+	public boolean onCommand(final CommandSender sender, Command command, String commandLabel, String[] args){
 		if(command.getName().equalsIgnoreCase("muco")){
 			Player player = null;
 			if(sender instanceof Player){
@@ -349,19 +349,25 @@ public class MultiCommand extends JavaPlugin{
 									}
 								}
 							}
+							Matcher consolematcher = Pattern.compile("^\\[\\$c\\]").matcher(chatmsg);
+							boolean console = false;
+							if(consolematcher.find()){
+								console = true;
+								chatmsg = consolematcher.replaceFirst("");
+							}
 							Matcher delaymatcher = Pattern.compile("^\\[\\d+\\]").matcher(chatmsg);
 							if(delaymatcher.find()){
 								totaldelay += 20*Integer.parseInt(delaymatcher.group(0).replaceAll("\\[", "").replaceAll("\\]", ""));
 								chatmsg = delaymatcher.replaceFirst("");
 							}
-							if(player == null){
+							if(player == null||console){
 								Matcher slashmatcher = Pattern.compile("^\\/").matcher(chatmsg);
 								if(slashmatcher.find()){
 									chatmsg = slashmatcher.replaceFirst("");
 								}
 							}
 							String removedoptionalargs = chatmsg;
-							if(player == null){
+							if(player == null||console){
 								chatmsg = chatmsg.replaceAll("\\$playername", "Console");
 								chatmsg = chatmsg.replaceAll("\\$playerworld", "Console");
 							}else{
@@ -396,11 +402,11 @@ public class MultiCommand extends JavaPlugin{
 							}else{
 								final String finalchatmsg = chatmsg;
 								final long finaldelay = totaldelay;
-								if(player == null){
+								if(player == null||console){
 									getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable(){
 										public void run(){
 											if(verbooseMode)
-												getServer().getConsoleSender().sendMessage(ChatColor.RED+"Executing "+ChatColor.DARK_RED+finalchatmsg+ChatColor.RED+" after "+ChatColor.DARK_RED+(finaldelay/20)+ChatColor.RED+" seconds after the command executation.");
+												sender.sendMessage(ChatColor.RED+"Executing "+ChatColor.DARK_RED+finalchatmsg+ChatColor.RED+" after "+ChatColor.DARK_RED+(finaldelay/20)+ChatColor.RED+" seconds after the command executation.");
 											getServer().dispatchCommand(getServer().getConsoleSender(), finalchatmsg);
 										}
 									}, totaldelay);

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -20,17 +21,21 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class Updater implements Listener{
-	String opUpdateMsg = "";
-	PluginDescriptionFile desc;
-	boolean enabled;
+	private String opUpdateMsg = "";
+	private PluginDescriptionFile desc;
+	private boolean enabled;
+	
 	public Updater(JavaPlugin plugin, boolean enabled){
 		this.enabled = enabled;
 		desc = plugin.getDescription();
 		URL connect = null;
-		try {
+		try{
 			if(enabled){
 				connect = new URL("http://inceptolabs.hopto.org:23516/update.php?p="+desc.getName()+"&v="+desc.getVersion());
-				BufferedReader in = new BufferedReader(new InputStreamReader(connect.openStream()));
+				URLConnection con = connect.openConnection();
+				con.setConnectTimeout(3000);
+				con.setReadTimeout(4000);
+				BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
 				String version = in.readLine();
 				in.close();
 				if(!version.equalsIgnoreCase("false")){
@@ -39,17 +44,14 @@ public class Updater implements Listener{
 				}else
 					plugin.getLogger().info("You are running the lastest release: "+desc.getVersion());
 			}
-		} catch (MalformedURLException e) {
+		}catch(MalformedURLException e){
 			e.printStackTrace();
-		} catch (IOException e) {
-			plugin.getLogger().warning("Failed on update check! Please check your Internet connection and your firewall!");
+		}catch(IOException e){
 			plugin.getLogger().warning("Failed on connecting to "+connect.getHost());
-			e.printStackTrace();
-		} catch (Exception e){
-			plugin.getLogger().warning("Failed on update check! Unknown Error! Stack trace:");
-			e.printStackTrace();
+			plugin.getLogger().info("Either you do not have an internet connection or the update server is down.");
 		}
 	}
+	
 	@EventHandler(priority = EventPriority.HIGH)
 	public void onPlayerLogin(PlayerJoinEvent event){
 		if(event.getPlayer().isOp()&&!opUpdateMsg.equals("")&&enabled){
