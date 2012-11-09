@@ -367,7 +367,7 @@ public class MultiCommand extends JavaPlugin{
 								}
 							}
 							String removedoptionalargs = chatmsg;
-							if(player == null||console){
+							if(player == null){
 								chatmsg = chatmsg.replaceAll("\\$playername", "Console");
 								chatmsg = chatmsg.replaceAll("\\$playerworld", "Console");
 							}else{
