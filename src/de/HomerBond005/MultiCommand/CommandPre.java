@@ -38,15 +38,15 @@ public class CommandPre implements Listener{
 				break;
 			}
 		}
+		String[] splitted = prepared.split(" ");
+		String command = splitted[0];
 		if(isDisabled)
-			if(!plugin.pc.has(player, "MultiCommand.ignoreDisabledCommands")){
+			if(!plugin.pc.has(player, "MultiCommand.ignoreDisabledCommands")&&!plugin.pc.has(player, "MultiCommand.ignoreDisabledCommand."+command.toLowerCase())){
 				if(plugin.commandDisabledMsg().trim().length() != 0)
 					player.sendMessage(plugin.commandDisabledMsg().replaceAll("(&([a-f0-9]))", "\u00A7$2"));
 				event.setCancelled(true);
 				return;
 			}
-		String[] splitted = prepared.split(" ");
-		String command = splitted[0];
 		String args = " ";
 		for(int i = 1; i < splitted.length; i++){
 			args += splitted[i] + " ";
