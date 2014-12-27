@@ -25,8 +25,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import de.homerbond005.multicommand.Metrics.Graph;
+import org.mcstats.Metrics;
+import org.mcstats.Metrics.Graph;
 
 public class MultiCommand extends JavaPlugin {
 	private boolean verbooseMode;
@@ -378,7 +378,7 @@ public class MultiCommand extends JavaPlugin {
 								chatmsg = chatmsg.replaceAll("\\$playerworld", player.getWorld().getName());
 							}
 							chatmsg = chatmsg.replaceAll("\\$servermaxplayers", "" + getServer().getMaxPlayers());
-							chatmsg = chatmsg.replaceAll("\\$serveronlineplayers", "" + getServer().getOnlinePlayers().length);
+							chatmsg = chatmsg.replaceAll("\\$serveronlineplayers", "" + getServer().getOnlinePlayers().size());
 							boolean error = false;
 							for (int t = 1; t < maxvariables + 1; t++) {
 								if ((Pattern.compile("\\$" + t)).matcher(chatmsg).find()) {
